@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=CyberDefence
+Name[ja]=サイバーディフェンス
+GenericName=Cyber Attack Defence Simulator
+Comment=Defend a Linux server from live cyber attacks in a simulated terminal
+Comment[ja]=模擬ターミナルでサイバー攻撃からLinuxサーバーを守ろう
+Exec=cyberdefence
+Icon=cyberdefence
+Terminal=false
+Categories=Game;Education;Simulation;
+Keywords=security;linux;terminal;firewall;hacking;defence;education;
