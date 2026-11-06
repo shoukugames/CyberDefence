@@ -6,13 +6,13 @@ information below as you can.
 
 ## Before you report
 
-- Make sure you are on the latest version (**current: v0.1.0** — shown on the
+- Make sure you are on the latest version (**current: v0.1.1** — shown on the
   title screen and in the Credits section).
 - Check whether the problem happens every time, or only sometimes.
 
 ## What to include
 
-1. **Version** — e.g. `v0.1.0` (title screen, bottom corner).
+1. **Version** — e.g. `v0.1.1` (title screen, bottom corner).
 2. **Platform** — Windows / Linux, and how you installed it (`.deb`, `.exe`, or
    from source).
 3. **Language** — were you in English or 日本語?
@@ -25,7 +25,7 @@ information below as you can.
 ### A good example
 
 ```
-Version:  v0.1.0
+Version:  v0.1.1
 Platform: Linux (.deb)
 Language: English
 Where:    Level 6 - Exposed Redis RCE

@@ -150,7 +150,7 @@ the packaged binary boots.
 Install / uninstall the `.deb`:
 
 ```bash
-sudo dpkg -i dist/cyberdefence_v0.1.0_amd64.deb
+sudo dpkg -i dist/cyberdefence_v0.1.1_amd64.deb
 sudo apt remove cyberdefence
 ```
 
