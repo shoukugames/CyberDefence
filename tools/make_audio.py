@@ -62,6 +62,55 @@ def soft_reverb(sig, decay=0.3, delay=0.09):
     return out
 
 
+def saw_tone(freq, dur, amp=0.2, n_harm=10, detune=0.006, vib=0.0):
+    """Warm, slightly detuned saw stack - the core synthwave pad voice."""
+    n = int(dur * SR)
+    t = np.linspace(0, dur, n, endpoint=False)
+    vibrato = (1 + vib * np.sin(2 * np.pi * 5 * t)) if vib else 1.0
+    sig = np.zeros(n)
+    for voice, dt in ((1.0, 0.0), (0.6, detune), (0.6, -detune)):
+        f = freq * (1 + dt) * vibrato
+        for h in range(1, n_harm + 1):
+            sig += voice * (1.0 / h) * np.sin(2 * np.pi * f * h * t)
+    return amp * sig / n_harm
+
+
+def lowpass(sig, cutoff_k=24):
+    """Gentle smoothing low-pass (moving average) for analog warmth."""
+    kern = np.ones(cutoff_k) / cutoff_k
+    return np.convolve(sig, kern, mode="same")
+
+
+def pingpong(left, right, delay=0.33, feedback=0.42, taps=5, mix=0.4):
+    """Stereo ping-pong echo - the classic neon/synthwave space."""
+    d = int(delay * SR)
+    outl, outr = left.copy(), right.copy()
+    tapl, tapr = left.copy(), right.copy()
+    for i in range(taps):
+        tapl = np.concatenate([np.zeros(d), tapl[:-d]]) * feedback
+        tapr = np.concatenate([np.zeros(d), tapr[:-d]]) * feedback
+        # swap channels each repeat -> bounces left/right
+        tapl, tapr = tapr, tapl
+        outl += tapl * mix
+        outr += tapr * mix
+    return outl, outr
+
+
+def sidechain(n, beat, depth=0.45, attack=0.012):
+    """A soft 'breathing' pump synced to the beat (subtle sidechain duck)."""
+    env = np.ones(n)
+    step = int(beat * SR)
+    ai = int(attack * SR)
+    for start in range(0, n, step):
+        rel = min(step, n - start)
+        shape = np.ones(rel)
+        if ai and rel > ai:
+            shape[:ai] = np.linspace(1 - depth, 1 - depth, ai)  # held dip at onset
+            shape[ai:] = np.linspace(1 - depth, 1.0, rel - ai) ** 0.6  # smooth recovery
+        env[start:start + rel] = shape
+    return env
+
+
 def normalize(sig, peak=0.85):
     m = np.max(np.abs(sig)) or 1.0
     return sig * (peak / m)
@@ -103,76 +152,101 @@ def write_ogg_or_wav(path_noext, stereo, quality="4"):
 
 
 def make_ambient():
-    """A slow, calm ~40s loop in A minor (lo-fi 'study' feel)."""
+    """A chill cyberpunk / synthwave loop in A minor.
+
+    Dark detuned saw pads over a soft pulsing synth bass, a neon ping-pong
+    arpeggio and an airy noise bed, all gently 'breathing' with a subtle
+    beat-synced sidechain. Relaxing, not busy - meant to sit under the game.
+    """
+    beat = 0.75  # ~80 BPM, laid-back
     bars = 16
-    beat = 1.4  # seconds - slow
-    total = int(bars * 4 * beat * SR)
+    bar_len = int(4 * beat * SR)
+    total = bars * bar_len
     left = np.zeros(total)
     right = np.zeros(total)
+    pad_bus_l = np.zeros(total)   # pads + arp get the sidechain pump
+    pad_bus_r = np.zeros(total)
 
-    # Chord progression: Am  -  Fmaj7  -  Cmaj7  -  G  (gentle, resolving)
+    # i - VI - III - VII voicings with added colour (noir synthwave)
+    #   Am9 - Fmaj7 - Cmaj7 - G6
     prog = [
-        [("A", 3), ("C", 4), ("E", 4)],
+        [("A", 3), ("C", 4), ("E", 4), ("B", 4)],
         [("F", 3), ("A", 3), ("C", 4), ("E", 4)],
         [("C", 3), ("E", 3), ("G", 3), ("B", 3)],
-        [("G", 3), ("B", 3), ("D", 4)],
+        [("G", 3), ("B", 3), ("D", 4), ("E", 4)],
     ]
-    bar_len = int(4 * beat * SR)
+
+    # --- Pads: warm detuned saw, slow swell, wide stereo -------------------
     for b in range(bars):
         chord = prog[b % len(prog)]
         start = b * bar_len
-        for nm, octv in chord:
+        for j, (nm, octv) in enumerate(chord):
             f = note(nm, octv)
-            pad = tone(f, 4 * beat, amp=0.12, harmonics=(1.0, 0.25, 0.08), detune=0.004, vib=0.004)
-            pad *= adsr(len(pad), a=1.0, d=1.0, s=0.6, r=1.3, sustain=0.6)
+            pad = saw_tone(f, 4 * beat, amp=0.10, n_harm=9, detune=0.007, vib=0.003)
+            pad = lowpass(pad, 40)   # soften the saw into a warm pad
+            pad *= adsr(len(pad), a=0.9, d=0.8, s=0.6, r=1.1, sustain=0.65)
             end = min(start + len(pad), total)
-            pan = 0.5 + 0.25 * np.sin(f)
-            left[start:end] += pad[:end - start] * (1 - pan * 0.4)
-            right[start:end] += pad[:end - start] * (0.6 + pan * 0.4)
+            pan = 0.5 + 0.35 * np.sin(j * 1.3 + 0.5)   # spread voices across the field
+            pad_bus_l[start:end] += pad[:end - start] * (1 - pan) * 1.2
+            pad_bus_r[start:end] += pad[:end - start] * pan * 1.2
 
-    # Soft bell arpeggio, sparse
-    arp_notes = [("A", 5), ("E", 5), ("C", 5), ("G", 4), ("E", 5), ("A", 5)]
-    pos = int(2 * beat * SR)
-    i = 0
-    while pos < total - SR:
-        nm, octv = arp_notes[i % len(arp_notes)]
-        bell = tone(note(nm, octv), 1.6, amp=0.06, harmonics=(1.0, 0.4, 0.15, 0.05))
-        bell *= adsr(len(bell), 0.01, 0.4, 0.3, 1.0, sustain=0.2)
-        end = min(pos + len(bell), total)
-        left[pos:end] += bell[:end - pos] * 0.8
-        right[pos:end] += bell[:end - pos]
-        pos += int(beat * 2 * SR)
-        i += 1
+    # --- Arp: plucky ping-pong line through the chord (neon shimmer) -------
+    eighth = int(beat / 2 * SR)
+    arp_pattern = [0, 2, 1, 3, 2, 1, 2, 0]  # index into the current chord, octave up
+    for b in range(bars):
+        chord = prog[b % len(prog)]
+        for s in range(8):
+            idx = arp_pattern[s % len(arp_pattern)]
+            nm, octv = chord[idx % len(chord)]
+            f = note(nm, octv + 1)
+            pos = b * bar_len + s * eighth
+            pl = tone(f, beat * 0.45, amp=0.05, harmonics=(1.0, 0.5, 0.25, 0.1))
+            pl *= adsr(len(pl), 0.004, 0.06, 0.25, 0.18, sustain=0.2)
+            end = min(pos + len(pl), total)
+            pad_bus_l[pos:end] += pl[:end - pos]
+            pad_bus_r[pos:end] += pl[:end - pos]
 
-    # Sub bass on the root of each bar
+    # breathing pump on pads + arp, then fold into the mix
+    pump = sidechain(total, beat, depth=0.38)
+    pl, pr = pingpong(pad_bus_l * pump, pad_bus_r * pump,
+                      delay=beat * 0.5, feedback=0.4, taps=5, mix=0.35)
+    left += pl
+    right += pr
+
+    # --- Synth bass: soft pulse on every beat (chill, not driving) --------
+    bass_amp = [0.9, 0.5, 0.7, 0.5]  # accent the downbeat
     for b in range(bars):
         nm, octv = prog[b % len(prog)][0]
-        sub = tone(note(nm, octv - 1), 4 * beat, amp=0.14, harmonics=(1.0, 0.1))
-        sub *= adsr(len(sub), 0.2, 0.5, 0.7, 1.0, sustain=0.7)
-        start = b * bar_len
-        end = min(start + len(sub), total)
-        left[start:end] += sub[:end - start]
-        right[start:end] += sub[:end - start]
+        f = note(nm, octv - 1)
+        for beat_i in range(4):
+            pos = b * bar_len + beat_i * int(beat * SR)
+            bs = saw_tone(f, beat * 0.9, amp=0.16 * bass_amp[beat_i], n_harm=6, detune=0.003)
+            bs = lowpass(bs, 30)
+            bs *= adsr(len(bs), 0.006, 0.12, 0.55, 0.12, sustain=0.5)
+            end = min(pos + len(bs), total)
+            left[pos:end] += bs[:end - pos]
+            right[pos:end] += bs[:end - pos]
 
-    left = soft_reverb(left, 0.25, 0.11)
-    right = soft_reverb(right, 0.25, 0.13)
+    # --- Airy noise bed: very quiet, slowly swelling (lo-fi atmosphere) ----
+    noise = np.random.uniform(-1, 1, total)
+    noise = lowpass(noise, 80) * 0.03
+    swell = 0.5 + 0.5 * np.sin(np.linspace(0, 2 * np.pi * 2, total))  # two slow swells
+    left += noise * swell
+    right += np.concatenate([noise[200:], noise[:200]]) * swell  # slight decorrelation
 
-    # gentle low-pass via moving average (warmth)
-    k = 24
-    kern = np.ones(k) / k
-    left = np.convolve(left, kern, mode="same")
-    right = np.convolve(right, kern, mode="same")
+    # overall warmth + space
+    left = lowpass(soft_reverb(left, 0.22, 0.12), 8)
+    right = lowpass(soft_reverb(right, 0.22, 0.14), 8)
 
     # crossfade the tail into the head so it loops seamlessly
-    xf = int(2.0 * SR)
+    xf = int(1.5 * SR)
     for ch in (left, right):
         head = ch[:xf].copy()
         tail = ch[-xf:].copy()
         fade = np.linspace(0, 1, xf)
         ch[:xf] = head * fade + tail * (1 - fade)
-    left = ch  # noqa (right already updated in place)
 
-    stereo = np.vstack([normalize(left, 0.7), normalize(right, 0.7)])
+    stereo = np.vstack([normalize(left, 0.72), normalize(right, 0.72)])
     return stereo
 
 

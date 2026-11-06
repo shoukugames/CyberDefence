@@ -7,6 +7,7 @@ chmod chown ln stat file which whoami id groups hostname uname date uptime clear
 mission objectives ps top kill killall pkill free df du ifconfig ip ping netstat ss lsof tcpdump ufw iptables
 sudo su exit systemctl service sysctl sed nano vi crontab apt apt-get dpkg tar md5sum sha256sum env export
 redis-cli lpstat lpadmin xz w who last tree true false sleep basename dirname rev yes nl tac diff
+alias ll la l
 """.split())
 
 PASSWD = """root:x:0:0:root:/root:/bin/sh

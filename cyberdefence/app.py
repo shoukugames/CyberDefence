@@ -847,7 +847,8 @@ class GameScene:
         prefix = text[:cursor]
         parts = prefix.split()
         if len(parts) <= 1 and not prefix.endswith(" "):
-            cands = [c for c in COMMANDS if c.startswith(parts[0] if parts else "")]
+            vocab = sorted(set(COMMANDS) | set(self.shell.aliases))
+            cands = [c for c in vocab if c.startswith(parts[0] if parts else "")]
             if len(cands) == 1:
                 self.terminal.set_input(cands[0] + " " + text[cursor:])
             elif len(cands) > 1:

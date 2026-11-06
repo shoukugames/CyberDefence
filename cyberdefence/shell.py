@@ -29,6 +29,7 @@ class Shell:
         self.history = []
         self.hint_idx = 0
         self.env = {"HOME": "/home/player", "USER": "player", "PATH": "/usr/bin:/bin:/sbin"}
+        self.aliases = {"ll": "ls -l", "la": "ls -la", "l": "ls -CF"}
 
     # ------------------------------------------------------------------ helpers
     @property
@@ -129,6 +130,9 @@ class Shell:
 
     # ------------------------------------------------------------------ dispatch
     def _dispatch(self, tokens, stdin):
+        # expand a shell alias in the command position, e.g. ll -> ls -l
+        if tokens and tokens[0] in self.aliases:
+            tokens = shlex.split(self.aliases[tokens[0]]) + tokens[1:]
         cmd = tokens[0]
         args = tokens[1:]
 
@@ -148,20 +152,50 @@ class Shell:
         except PermissionError:
             return self.err(self._("sh.need_root", cmd=" ".join(tokens)))
 
+    def _become_root(self):
+        self.user = "root"
+        self.env["USER"] = "root"
+        self.env["HOME"] = "/root"
+        return CmdResult(self._("sh.now_root") + "\n")
+
+    def _spawns_root_shell(self, args):
+        """True if `args` (the tokens after sudo/su) just open a root shell,
+        e.g. `su`, `su -`, `su root`, `sudo su -`, `sudo bash`, `sudo -i`."""
+        toks = list(args)
+        # drop leading sudo-style options that don't change this
+        while toks and toks[0] in ("-i", "-s", "-H", "-E"):
+            toks.pop(0)
+        if not toks:
+            return True  # bare `sudo` / `sudo -i` / `sudo -s`
+        if toks[0] in ("su", "bash", "sh", "-bash", "-sh", "ash", "dash"):
+            rest = [t for t in toks[1:] if t not in ("-", "-l", "--login", "root", "-c")]
+            # `su -c <cmd>` runs a command, not a login shell
+            if "-c" in toks[1:]:
+                return False
+            return not rest
+        return False
+
     def _sudo(self, cmd, args, stdin):
-        if not args or args[0] in ("-i", "-s", "-") or (cmd == "su" and (not args or args[0] in ("-", "root"))):
-            # become root shell
-            self.user = "root"
-            self.cwd = self.cwd
-            self.env["USER"] = "root"
-            self.env["HOME"] = "/root"
-            return CmdResult(self._("sh.now_root") + "\n")
-        if args[0] == "-l" and cmd == "sudo":
+        if args and args[0] == "-l" and cmd == "sudo":
             return CmdResult("User player may run the following commands on websrv01:\n"
                              "    (ALL : ALL) NOPASSWD: ALL\n")
+        # become root shell: `su`, `su -`, `su root`, `sudo`, `sudo -i`,
+        # `sudo su -`, `sudo bash`, ...
+        if cmd == "su":
+            if "-c" in args:
+                i = args.index("-c")
+                args = args[i + 1:]  # run the quoted command as root
+            elif not args or all(t in ("-", "-l", "--login", "root") for t in args):
+                return self._become_root()
+            else:
+                return self._become_root()  # `su someuser` → root shell in this sim
+        elif self._spawns_root_shell(args):
+            return self._become_root()
         # run one command as root
         saved_user, saved_env = self.user, dict(self.env)
         self.user = "root"
+        self.env["USER"] = "root"
+        self.env["HOME"] = "/root"
         try:
             res = self._run_segment(" ".join(shlex.quote(a) for a in args), stdin)
         finally:
@@ -1620,6 +1654,19 @@ class Shell:
         if page is None:
             return CmdResult(self._("sh.man_none", cmd=a[0]) + "\n", 1)
         return CmdResult(page + "\n\n" + self._("sh.man_limited") + "\n")
+
+    def cmd_alias(self, a, s):
+        if a and "=" in a[0]:
+            name, _, val = " ".join(a).partition("=")
+            self.aliases[name.strip()] = val.strip().strip("'\"")
+            return CmdResult("")
+        if a:  # `alias ll` -> show one
+            name = a[0]
+            if name in self.aliases:
+                return CmdResult(f"alias {name}='{self.aliases[name]}'\n")
+            return self.err(f"alias: {name}: not found")
+        lines = [f"alias {k}='{v}'" for k, v in sorted(self.aliases.items())]
+        return CmdResult("\n".join(lines) + ("\n" if lines else ""))
 
     def cmd_help(self, a, s):
         lines = [self._("sh.type_help"), ""]

@@ -10,7 +10,7 @@ threat down using a simulated BusyBox-style terminal.
 There are no points — instead, every clear is stamped with the **time and date**
 you completed it, and your fastest runs land on the **Top 10 speed-run board**.
 
-Recommended for **ages 10 and up**. English and 日本語, with an in-game toggle.
+Recommended for **ages 16 and up**. English and 日本語, with an in-game toggle.
 
 ![CyberDefence](assets/icon.png)
 

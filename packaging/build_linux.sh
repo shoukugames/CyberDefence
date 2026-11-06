@@ -62,7 +62,7 @@ Description: Cyber attack defence simulator in a terminal
  the CUPS and xz CVEs, rogue scripts and data breaches - using a simulated
  BusyBox-style terminal with netstat, tcpdump, ufw and more. English and
  Japanese, relaxing ambient music, a training academy and Top 10 speed runs.
- Recommended for ages 10 and up.
+ Recommended for ages 16 and up.
 CONTROL
 cat > "$STAGE/DEBIAN/postinst" <<'SCRIPT'
 #!/bin/sh

@@ -209,7 +209,7 @@ STR = {
     "cred.web": ("Website", "ウェブサイト"),
     "cred.email": ("Email", "メール"),
     "cred.license": ("License", "ライセンス"),
-    "cred.ages": ("Recommended ages 10+", "対象年齢 10歳以上"),
+    "cred.ages": ("Recommended ages 16+", "対象年齢 16歳以上"),
     "cred.thanks": ("Thank you for playing. Stay curious, stay secure.", "プレイありがとう。好奇心を持って、安全に。"),
 }
 
