@@ -3,6 +3,7 @@ import os
 
 import pygame
 
+from . import WEB
 from .paths import asset_dir
 
 
@@ -58,7 +59,10 @@ class Audio:
     def stop_music(self):
         if self.ok:
             try:
-                pygame.mixer.music.fadeout(600)
+                if WEB:  # a new track waits for a fade-out, which can't finish while the page waits
+                    pygame.mixer.music.stop()
+                else:
+                    pygame.mixer.music.fadeout(600)
             except pygame.error:
                 pass
 

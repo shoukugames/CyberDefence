@@ -6,7 +6,7 @@ import time
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 import pygame  # noqa: E402
 
-from . import __version__, ui  # noqa: E402
+from . import WEB, __version__, ui  # noqa: E402
 from .audio import Audio  # noqa: E402
 from .credits import CREDITS  # noqa: E402
 from .i18n import I18n  # noqa: E402
@@ -48,6 +48,8 @@ class App:
         self.fullscreen = self.save.settings.get("fullscreen", False)
         if self.fullscreen:
             flags |= pygame.FULLSCREEN
+        if WEB:  # a fixed-size canvas; the page scales it to fit the browser window
+            flags = 0
         self.screen = pygame.display.set_mode((BASE_W, BASE_H), flags)
         pygame.display.set_caption("CyberDefence")
         self._set_icon()
@@ -67,6 +69,20 @@ class App:
         self.reset_armed = False
         self.game = None
         self.anim = 0.0
+        if WEB:  # a web page has nothing to quit to
+            self.MENU_ITEMS = [m for m in App.MENU_ITEMS if m != "quit"]
+            self.MENU_KEYS = [k for k in App.MENU_KEYS if k != "menu.quit"]
+        # Phones and tablets: an on-screen key bar and the device keyboard (see webkeys.py).
+        self.webkeys = None
+        if WEB:
+            from .webkeys import WebKeys, has_touch_screen
+            if has_touch_screen():
+                try:
+                    self.webkeys = WebKeys()
+                except Exception:  # noqa: BLE001 - the game still works with a real keyboard
+                    import traceback
+                    import platform
+                    platform.window.console.error("webkeys: " + traceback.format_exc())
 
     # ------------------------------------------------------------------ setup
     def _set_icon(self):
@@ -89,15 +105,28 @@ class App:
         if self.smoke is not None:
             return self._run_smoke()
         while self.running:
-            dt = self.clock.tick(60) / 1000.0
-            self.anim += dt
-            self._handle_events()
-            self._update(dt)
-            self._draw()
-            pygame.display.flip()
+            self.frame()
         self.save.write()
         pygame.quit()
         return 0
+
+    def frame(self):
+        dt = self.clock.tick(60) / 1000.0
+        self.anim += dt
+        if self.webkeys:
+            self.webkeys.poll()
+        self._handle_events()
+        self._update(dt)
+        self._draw()
+        pygame.display.flip()
+
+    async def run_web(self):
+        """Browser main loop: hands control back to the page after every frame."""
+        import asyncio
+        while True:  # a web page has no "quit"; closing the tab ends the game
+            self.running = True
+            self.frame()
+            await asyncio.sleep(0)
 
     def _run_smoke(self):
         # Headless self-check used by the build to prove the game boots.
@@ -119,8 +148,8 @@ class App:
     def _handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                self.running = False
-            elif event.type == pygame.VIDEORESIZE and not self.fullscreen:
+                self.running = WEB  # in a browser there is nothing to quit to
+            elif event.type == pygame.VIDEORESIZE and not self.fullscreen and not WEB:
                 self.screen = pygame.display.set_mode((max(900, event.w), max(600, event.h)), pygame.RESIZABLE)
                 self.fonts = ui.Fonts(scale=self._scale())
                 if self.game:
@@ -142,7 +171,7 @@ class App:
             self.save.set("bgm", on)
             self.audio.play("select")
             return True
-        if event.key == pygame.K_f:
+        if event.key == pygame.K_f and not WEB:
             self._toggle_fullscreen()
             return True
         return False
@@ -216,7 +245,7 @@ class App:
             else:
                 self.scene = target
                 self.scrolloff = 0
-        elif event.key == pygame.K_ESCAPE:
+        elif event.key == pygame.K_ESCAPE and not WEB:
             self.running = False
 
     # ------------------------------------------------------------------ level select

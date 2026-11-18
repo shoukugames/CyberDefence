@@ -105,6 +105,23 @@ manual page.
 
 ---
 
+## Play in the browser
+
+CyberDefence also runs in a web browser, with nothing to install:
+<https://shoukugames.org/play/cyberdefence/> (test page). It is a typing game, so a keyboard is
+best. On phones and tablets a key bar appears beside the game (Esc, Tab, arrows, Enter) and the
+⌨ button opens the device's keyboard for typing commands. Progress is saved in the browser.
+
+```bash
+python3 -m pip install pygame pygbag     # plus ffmpeg on PATH (or FFMPEG=/path/to/ffmpeg)
+python3 tools/build_web.py               # -> build/web/: upload the folder as-is
+```
+
+The build uses [pygbag](https://pygame-web.github.io/), which also converts the sounds to OGG.
+`main.py` is the web entry point; the browser-only parts (including `cyberdefence/webkeys.py`,
+the touch-screen key bar) switch on only in the browser. The `.apk` file pygbag writes is its
+bundle of game files, not an Android app.
+
 ## Running from source
 
 ```bash

@@ -3,7 +3,10 @@ import json
 import os
 import time
 
+from . import WEB
 from .paths import data_dir
+
+_WEB_KEY = "cyberdefence/save.json"  # browser: localStorage key (files vanish with the page)
 
 LEVEL_COUNT = 10
 TOP_N = 10
@@ -31,9 +34,16 @@ class Save:
 
     def load(self):
         try:
-            with open(self.path, encoding="utf-8") as fh:
-                loaded = json.load(fh)
-        except (OSError, ValueError):
+            if WEB:
+                import platform  # pygbag's bridge to the page
+                raw = platform.window.localStorage.getItem(_WEB_KEY)
+                loaded = json.loads(str(raw)) if raw else {}
+            else:
+                with open(self.path, encoding="utf-8") as fh:
+                    loaded = json.load(fh)
+        except Exception:  # noqa: BLE001 - a damaged save starts fresh
+            return
+        if not isinstance(loaded, dict):
             return
         blank = _blank()
         for key, value in loaded.items():
@@ -44,6 +54,13 @@ class Save:
         self.data = blank
 
     def write(self):
+        if WEB:
+            try:
+                import platform  # pygbag's bridge to the page
+                platform.window.localStorage.setItem(_WEB_KEY, json.dumps(self.data, ensure_ascii=False))
+            except Exception:  # noqa: BLE001
+                pass
+            return
         tmp = self.path + ".tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as fh:
