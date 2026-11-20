@@ -1,0 +1,12 @@
+{
+ "_note": "Replace identity_name, publisher and publisher_display_name with the values from Partner Center (Product management -> Product identity) before uploading to the Microsoft Store.",
+ "identity_name": "ShoukuGames.CyberDefence",
+ "publisher": "CN=ShoukuGamesPlaceholder",
+ "publisher_display_name": "Shouku Games",
+ "display_name": "CyberDefence",
+ "description": "Defend a Linux server from ten real-world cyber attacks before the clock runs out - all in a simulated terminal.",
+ "file_name": "CyberDefence",
+ "exe_name": "CyberDefence.exe",
+ "alias": "shouku-cyberdefence.exe",
+ "device_capabilities": []
+}
